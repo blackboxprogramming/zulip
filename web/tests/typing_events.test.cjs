@@ -106,3 +106,75 @@ run_test("render_notifications_for_narrow", ({override, mock_template}) => {
     typing_events.render_notifications_for_narrow();
     assert.ok(!$typing_notifications.visible());
 });
+
+run_test("disable_typing_notification_clears_visible_edit_indicators", ({override, mock_template}) => {
+    typing_data.clear_for_testing();
+    const cleared = [];
+    let next_timer = 0;
+    override(global, "setTimeout", () => ++next_timer);
+    override(global, "clearTimeout", (timer) => cleared.push(timer));
+    mock_template("editing_notifications.hbs", false, () => "editing");
+
+    const row_state = new Map();
+    const rows = new Map();
+    for (const id of [41, 42]) {
+        const state = {notice_hidden: false, editing_html: ""};
+        row_state.set(id, state);
+        rows.set(id, {
+            find(selector) {
+                if (selector === ".message_edit_notice") {
+                    return {
+                        addClass() {
+                            state.notice_hidden = true;
+                        },
+                        removeClass() {
+                            state.notice_hidden = false;
+                        },
+                    };
+                }
+                assert.equal(selector, ".edit-notifications");
+                return {html(value) {
+                    state.editing_html = value;
+                }};
+            },
+        });
+    }
+    override(message_lists, "current", {get_row: (id) => rows.get(id)});
+    // Use an unnarrowed view for the unrelated ordinary typing notification.
+    const narrow_state = zrequire("narrow_state");
+    override(narrow_state, "narrowed_by_topic_reply", () => false);
+    override(narrow_state, "narrowed_to_pms", () => false);
+
+    for (const message_id of [41, 42]) {
+        typing_events.display_message_edit_notification({
+            type: "typing_edit_message",
+            message_id,
+            op: "start",
+            sender_id: anna.user_id,
+            recipient: {type: "direct", user_ids: [anna.user_id, vronsky.user_id]},
+        });
+        assert.equal(typing_data.is_message_editing(message_id), true);
+        assert.equal(row_state.get(message_id).notice_hidden, true);
+        assert.equal(row_state.get(message_id).editing_html, "editing");
+    }
+
+    typing_events.disable_typing_notification();
+    for (const message_id of [41, 42]) {
+        assert.equal(typing_data.is_message_editing(message_id), false);
+        assert.deepEqual(row_state.get(message_id), {notice_hidden: false, editing_html: ""});
+    }
+    assert.deepEqual(cleared, [1, 2]);
+    typing_events.disable_typing_notification();
+    assert.deepEqual(cleared, [1, 2]);
+});
+
+run_test("disable_typing_notification_clears_an_offscreen_edit", ({override}) => {
+    typing_data.clear_for_testing();
+    const narrow_state = zrequire("narrow_state");
+    override(narrow_state, "narrowed_by_topic_reply", () => false);
+    override(narrow_state, "narrowed_to_pms", () => false);
+    override(message_lists, "current", {get_row: () => undefined});
+    typing_data.add_edit_message_typing_id(50);
+    typing_events.disable_typing_notification();
+    assert.equal(typing_data.is_message_editing(50), false);
+});

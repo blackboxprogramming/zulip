@@ -263,3 +263,38 @@ test("timers", () => {
         timer_set: false,
     });
 });
+
+test("clear_typing_data_resets_editing_and_cancels_expiry", ({override}) => {
+    let next_timer = 0;
+    const cleared = [];
+    override(global, "setTimeout", () => ++next_timer);
+    override(global, "clearTimeout", (timer) => cleared.push(timer));
+
+    for (const message_id of [3, 7]) {
+        typing_data.add_edit_message_typing_id(message_id);
+        typing_data.kickstart_inbound_timer(String(message_id), 100, () => {});
+    }
+    const key = typing_data.get_direct_message_conversation_key([1, 2]);
+    typing_data.add_typist(key, 2);
+    typing_data.kickstart_inbound_timer(key, 100, () => {});
+
+    const editing_ids = typing_data.clear_typing_data();
+    assert.deepEqual(new Set(editing_ids), new Set([3, 7]));
+    assert.equal(typing_data.is_message_editing(3), false);
+    assert.equal(typing_data.is_message_editing(7), false);
+    assert.deepEqual(typing_data.get_group_typists([1, 2]), []);
+    assert.deepEqual(cleared, [1, 2, 3]);
+    assert.deepEqual(typing_data.clear_typing_data(), []);
+    assert.deepEqual(cleared, [1, 2, 3]);
+});
+
+test("clear_for_testing_releases_editing_state_and_timers", ({override}) => {
+    const cleared = [];
+    override(global, "setTimeout", () => 123);
+    override(global, "clearTimeout", (timer) => cleared.push(timer));
+    typing_data.add_edit_message_typing_id(7);
+    typing_data.kickstart_inbound_timer("7", 100, () => {});
+    typing_data.clear_for_testing();
+    assert.equal(typing_data.is_message_editing(7), false);
+    assert.deepEqual(cleared, [123]);
+});
