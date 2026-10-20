@@ -209,6 +209,9 @@ export function display_message_edit_notification(event: TypingMessageEditEvent)
 }
 
 export function disable_typing_notification(): void {
-    typing_data.clear_typing_data();
+    const editing_message_ids = typing_data.clear_typing_data();
+    for (const message_id of editing_message_ids) {
+        render_message_editing_typing(message_id, false);
+    }
     render_notifications_for_narrow();
 }

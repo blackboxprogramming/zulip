@@ -179,3 +179,12 @@ Right now, we are possibly too aggressive about sending `stop`
 messages when users are just pausing to think. It's possible
 to better account for typing speed or other heuristic things
 like how much of the message has already been typed.
+
+
+## Resetting receiving-side state
+
+Disabling typing notifications cancels all inbound expiry timers and clears
+ordinary typing and message-editing state together. The reset returns the
+previously active message IDs so the event layer can also remove editing
+indicators from visible rows. Off-screen rows read the cleared state when
+rendered again. Test resets use the same cleanup path.

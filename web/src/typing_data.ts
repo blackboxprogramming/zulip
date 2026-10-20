@@ -8,8 +8,7 @@ const edit_message_typing_ids = new Set<number>();
 const inbound_timer_dict = new Map<string, ReturnType<typeof setInterval> | undefined>();
 
 export function clear_for_testing(): void {
-    typists_dict.clear();
-    inbound_timer_dict.clear();
+    clear_typing_data();
 }
 
 export function get_direct_message_conversation_key(group: number[]): string {
@@ -65,12 +64,15 @@ export function get_topic_typists(stream_id: number, topic: string): number[] {
     return muted_users.filter_muted_user_ids(typists);
 }
 
-export function clear_typing_data(): void {
+export function clear_typing_data(): number[] {
     for (const [, timer] of inbound_timer_dict.entries()) {
         clearTimeout(timer);
     }
     inbound_timer_dict.clear();
     typists_dict.clear();
+    const editing_message_ids = [...edit_message_typing_ids];
+    edit_message_typing_ids.clear();
+    return editing_message_ids;
 }
 
 export function add_edit_message_typing_id(message_id: number): void {
